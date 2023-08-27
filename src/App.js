@@ -1,5 +1,14 @@
 import React, { useState, useEffect } from "react";
-import { collection, addDoc, deleteDoc, doc, query, where, onSnapshot } from "firebase/firestore";
+import {
+  collection,
+  addDoc,
+  deleteDoc,
+  doc,
+  query,
+  where,
+  onSnapshot,
+  updateDoc,
+} from "firebase/firestore";
 import db from "./firebase";
 import "./App.css";
 
@@ -10,12 +19,13 @@ function App() {
   const [time, setTime] = useState("00:00");
   const [selectedSchedule, setSelectedSchedule] = useState(null);
   const [selectedDate, setSelectedDate] = useState("2023-09-09");
+  const [editingSchedule, setEditingSchedule] = useState(null);
 
   useEffect(() => {
     const unsubscribe = onSnapshot(
       query(collection(db, "schedules"), where("date", "==", selectedDate)),
       (snapshot) => {
-        const scheduleData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const scheduleData = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
         const sortedSchedules = scheduleData.sort((a, b) => {
           const timeA = a.time.split(":").map(Number);
           const timeB = b.time.split(":").map(Number);
@@ -38,12 +48,22 @@ function App() {
     e.preventDefault();
 
     if (title && content) {
-      await addDoc(collection(db, "schedules"), {
-        title,
-        date: selectedDate,
-        time,
-        content
-      });
+      if (editingSchedule) {
+        await updateDoc(doc(db, "schedules", editingSchedule.id), {
+          title,
+          content,
+          time,
+        });
+        setEditingSchedule(null);
+        setSelectedSchedule(null);
+      } else {
+        await addDoc(collection(db, "schedules"), {
+          title,
+          date: selectedDate,
+          time,
+          content,
+        });
+      }
 
       setTitle("");
       setContent("");
@@ -51,13 +71,21 @@ function App() {
     }
   };
 
-  const handleDelete = async (scheduleId) => {
-    await deleteDoc(doc(db, "schedules", scheduleId));
-    setSelectedSchedule(null); // 削除後に内容表示をリセット
-  };
-
   const handleScheduleClick = (schedule) => {
     setSelectedSchedule(schedule);
+  };
+
+  const handleDelete = async (scheduleId) => {
+    await deleteDoc(doc(db, "schedules", scheduleId));
+    setSelectedSchedule(null);
+    setEditingSchedule(null);
+  };
+
+  const handleEdit = (schedule) => {
+    setEditingSchedule(schedule);
+    setTitle(schedule.title);
+    setContent(schedule.content);
+    setTime(schedule.time);
   };
 
   return (
@@ -88,28 +116,40 @@ function App() {
           value={content}
           onChange={(e) => setContent(e.target.value)}
         />
-        <button type="submit">加える</button>
+        <button type="submit">{editingSchedule ? "保存" : "加える"}</button>
+        {editingSchedule && (
+          <button onClick={() => setEditingSchedule(null)}>キャンセル</button>
+        )}
       </form>
-      <h2>{selectedDate}のスケジュール</h2>
-      <ul>
-        {schedules.map(schedule => (
-          <li
-            key={schedule.id}
-            onClick={() => handleScheduleClick(schedule)}
-          >
-            {schedule.time} - {schedule.title}
-            <button onClick={() => handleDelete(schedule.id)}>削除する</button>
-          </li>
-        ))}
-      </ul>
-      {selectedSchedule && (
-        <div className="modal">
-          <div className="modal-content">
-            <h3>{selectedSchedule.title}</h3>
-            <p>時間: {selectedSchedule.time}</p>
-            <p>内容: {selectedSchedule.content}</p>
-            <button onClick={() => setSelectedSchedule(null)}>閉じる</button>
-          </div>
+      {editingSchedule ? (
+        <div>
+          <h2>スケジュールを編集</h2>
+          {/* 編集フォーム */}
+        </div>
+      ) : (
+        <div>
+          <h2>{selectedDate}のスケジュール</h2>
+          <ul>
+            {schedules.map((schedule) => (
+              <li key={schedule.id} onClick={() => handleScheduleClick(schedule)}>
+                {schedule.time} - {schedule.title}
+                <span className="schedule-buttons">
+                  <button onClick={() => handleEdit(schedule)}>編集</button>
+                  <button onClick={() => handleDelete(schedule.id)}>削除</button>
+                </span>
+              </li>
+            ))}
+          </ul>
+          {selectedSchedule && (
+            <div className="modal">
+              <div className="modal-content">
+                <h3>{selectedSchedule.title}</h3>
+                <p>時間: {selectedSchedule.time}</p>
+                <p>内容: {selectedSchedule.content}</p>
+                <button onClick={() => setSelectedSchedule(null)}>閉じる</button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

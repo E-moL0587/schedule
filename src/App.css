@@ -100,3 +100,7 @@ textarea {
   height: 150px;
   resize: vertical;
 }
+
+.schedule-buttons {
+  text-align: right;
+}
